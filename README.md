@@ -6,14 +6,14 @@ OpenXR, and Unity.
 
 Currently shipping Vulkan renderer features at [Dalux](https://www.dalux.com)
 on a cross-platform .NET MAUI app for BIM viewing. In the evenings I'm
-tinkering with [Lmbic](#lmbic--interactive-projection-system), a spatial-AR
+tinkering with Lmbic, a spatial-AR
 projection lamp.
 
 ---
 
 ## Featured projects ⚡
 
-### Lmbic — Interactive Projection System
+### Lmbic — Interactive Projection System &nbsp;·&nbsp; [Write-up →](lmbic/)
 
 Spatial-AR passion project: a Jetson + cameras + DLP projector in a
 lamp-style form factor, projecting context-aware overlays onto a desk or wall.

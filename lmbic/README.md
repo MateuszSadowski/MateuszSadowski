@@ -109,6 +109,82 @@ everything that follows is software.
 
 ---
 
-_Next: turning the projector and the cameras into a closed-loop system that
-can find itself in space. Calibration, homographies, and getting projected
-content to land where you actually intended it to._
+## 2. First closed loop
+
+With the substrate working, the next milestone was to make the components
+function as a _system_ — not just as parts on the same desk that happen to
+be wired up. Concretely: capture frames from the cameras, project something
+computed from those frames back into the world, and have it land where you
+actually intended it to.
+
+### Calibration: from two views to one space
+
+The cameras and the projector each see the world through their own
+coordinate system. To project something at a place a camera observed, we
+need a transformation between the two — a way to take a pixel the camera
+saw and answer "where does that go on the DMD".
+
+For a flat surface like a desk seen by a fixed camera and lit by a fixed
+projector, that transformation is well captured by a
+[homography](https://en.wikipedia.org/wiki/Homography_(computer_vision)) —
+a 3×3 matrix you can derive from a small set of corresponding points seen
+from both sides. The classical way to find those correspondences: project a
+known pattern (a checkerboard) and have the camera observe it. From there,
+solving for the homography is a textbook OpenCV call.
+
+We initially planned to also correct for camera lens distortion — the
+standard radial / tangential model you fit from the same calibration
+images — but the residuals at the scale and geometry we cared about were
+small enough that doing so would not have changed any downstream decision.
+We left distortion correction out for the prototype and moved on.
+
+![Calibration with a checkerboard](images/04-calibration-checkerboard.jpg)
+
+### A first interactive sketch: ArUco markers
+
+The simplest possible "the projector is reacting to the world" demo:
+
+- Place
+  [ArUco fiducial markers](https://docs.opencv.org/4.x/d5/dae/tutorial_aruco_detection.html)
+  on the desk
+- Detect them in the camera frames with OpenCV's marker detector (cheap,
+  reliable, works at video rate)
+- Map each detected marker corner from camera space into projector space
+  using the homography we just calibrated
+- Project a box around it
+
+This was small in scope on purpose — ArUco markers are a developer's tool,
+not a product feature — but it was enough to exercise the entire loop:
+camera frame in, computer-vision step in the middle, projector frame out.
+If the box sits where the marker is, every link in the chain is healthy.
+
+### First POC
+
+When we ran the loop end-to-end for the first time and moved a marker
+around the desk while a glowing rectangle followed it across the surface,
+the project quietly tipped over from "a pile of components on a desk" to
+"an interactive projection system". Modest in what it _did_ — but the
+substrate, the calibration, the capture pipeline, the rendering pipeline,
+and the projector were all now working together. The first proof of
+concept of Lmbic.
+
+![Red dots projected at ArUco marker corners](images/05-projected-dots.jpg)
+>
+> _**Disclaimer:** the only photo I have from this milestone is from an
+> earlier iteration of the demo — projecting a single dot at one known
+> camera-space corner of each marker, before I extended it to draw the full
+> rectangle. As a proof that the calibration was working end-to-end it was
+> already conclusive: a dot landing exactly where it was asked to means
+> every link in the chain is healthy._
+
+### Outcome
+
+A working closed-loop interactive projection prototype. Anything we wanted
+to project on top of the world from here on was, in principle, the same
+flow with a different middle step.
+
+---
+
+_Next: replacing the marker tape with something useful. Real-time object
+detection in the camera stream, so the system can react to the things on
+your desk that are actually meant to be there._

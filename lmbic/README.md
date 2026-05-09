@@ -185,6 +185,87 @@ flow with a different middle step.
 
 ---
 
-_Next: replacing the marker tape with something useful. Real-time object
-detection in the camera stream, so the system can react to the things on
-your desk that are actually meant to be there._
+## 3. Replacing markers with real objects
+
+ArUco markers are scaffolding. For the system to do anything useful in a
+real environment it has to react to ordinary objects — a coffee cup, a
+keyboard, a hand — without anyone first taping a fiducial onto them. That
+calls for real-time object detection.
+
+### YOLO as the natural fit
+
+[YOLO](https://github.com/ultralytics/ultralytics) is a well-supported
+family of real-time object detectors. Pretrained weights cover the COCO
+classes, which between them name most things you'd plausibly find on a
+desk. From the pipeline's point of view the change was almost mechanical:
+swap the ArUco detector in the middle of the loop for a YOLO inference
+step, take the bounding boxes and labels it returns, and feed those into
+the same homography-and-project flow that already worked for markers.
+
+That was the easy part.
+
+### The Jetson Nano environment is a maze
+
+We wanted YOLO running directly on the Nano alongside the rest of the
+host-side software. Two related problems made that surprisingly difficult.
+
+The first is structural. The Jetson Nano is built around the older Tegra
+X1 SoC, and its last supported Jetpack release is well behind current. The
+host OS, CUDA, and the surrounding system libraries are all pinned to that
+release. Newer ML toolchains assume newer versions of those libraries —
+and there is no upgrade path for the Nano specifically, because the
+hardware is end-of-life from NVIDIA's side. You can't fix the version
+mismatch by updating the system; the system is the version it is.
+
+The second is practical. ARM `aarch64` Python wheels for the libraries you
+need to build a CV/ML pipeline are inconsistently published — you often
+can't `pip install opencv-python` and have it just work, because no wheel
+exists for your architecture and Python version. The realistic options
+become: use NVIDIA's package repository (often an older release than
+upstream), build from source on the Nano (slow), or sidestep the host
+environment entirely.
+
+### Docker as the workaround
+
+We ran YOLO inside a Docker container with exactly the library versions it
+expected, and left the rest of the host environment alone. Container
+runtime overhead was negligible against the inference cost, and the setup
+was reproducible across machines — meaning the same image would boot
+identically on whatever development board we plugged in next.
+
+### Talking to the container with gRPC
+
+Once YOLO lives in its own process, the host needs a way to ship camera
+frames in and pull detections back out at video rate. We used
+[gRPC](https://grpc.io/) for that boundary: schema-defined messages, decent
+performance for binary payloads, and language-agnostic so neither side
+constrained the other.
+
+The shape of the loop became:
+
+- Host process pulls a frame from the cameras
+- Frame is serialised and compressed, and sent into the YOLO container over gRPC
+- Container runs inference, returns bounding boxes + labels
+- Host maps the boxes from camera space into projector space via the
+  calibrated homography
+- Projector renders a labeled rectangle around each detected object
+
+The same wire format would later make it cheap to move YOLO off-device
+entirely if we ever needed more compute than the Nano had. We could also swap in a different model with the same input-output shape without changing the host at all.
+
+### Outcome
+
+A pipeline that reacts to whatever is actually on the desk, without
+requiring fiducial markers on every object. The substrate from the
+previous chapter was now driving something useful — and the bottleneck
+shifted from "does the system see the world" to "what should it project
+back at it".
+
+![Labeled rectangle projected onto a recognised object](images/08-projected-detection.jpg)
+
+---
+
+_Next: making the projection itself worth looking at. The labeled
+rectangle is a developer's UI; real applications need real graphics —
+shaders, transparency, animation. That means handing rendering off to a
+proper engine._
